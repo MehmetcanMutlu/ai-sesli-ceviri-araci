@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Fotoğraftaki yazıları okuyan ve metni sese çeviren yapay zeka destekli web aracı."
+    />
+    <title>Sesli Yazı Asistanı</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="stylesheet" href="styles.css" />
+    <script
+      src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"
+      defer
+    ></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <i data-lucide="scan-text"></i>
+          </span>
+          <div>
+            <h1>Sesli Yazı Asistanı</h1>
+            <p>Fotoğraftan metin çıkarma, kalite kontrolü ve metni seslendirme</p>
+          </div>
+        </div>
+        <div class="topbar-status" id="appStatus" role="status" aria-live="polite">
+          Hazır
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="panel media-panel" aria-labelledby="imagePanelTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Görüntü</p>
+              <h2 id="imagePanelTitle">Fotoğraf</h2>
+            </div>
+            <button class="icon-button" id="resetButton" type="button" aria-label="Sıfırla">
+              <i data-lucide="rotate-ccw"></i>
+            </button>
+          </div>
+
+          <div class="drop-zone" id="dropZone">
+            <input
+              id="imageInput"
+              class="file-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+            />
+            <div class="preview-frame" id="previewFrame">
+              <img id="imagePreview" class="image-preview" alt="Yüklenen fotoğraf önizlemesi" />
+              <div class="empty-preview" id="emptyPreview">
+                <i data-lucide="image-up"></i>
+                <span>Fotoğraf bekleniyor</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="control-row">
+            <label class="file-button" for="imageInput">
+              <i data-lucide="camera"></i>
+              <span>Fotoğraf seç</span>
+            </label>
+            <button class="primary-button" id="extractButton" type="button" disabled>
+              <i data-lucide="scan-line"></i>
+              <span>Metni oku</span>
+            </button>
+          </div>
+
+          <div class="field-grid">
+            <div class="field-group">
+              <label for="ocrLanguage">OCR dili</label>
+              <select id="ocrLanguage">
+                <option value="tur+eng" selected>Türkçe + İngilizce</option>
+                <option value="tur">Türkçe</option>
+                <option value="eng">İngilizce</option>
+                <option value="deu">Almanca</option>
+                <option value="fra">Fransızca</option>
+                <option value="spa">İspanyolca</option>
+              </select>
+            </div>
+
+            <label class="toggle-card" for="enhanceToggle">
+              <input id="enhanceToggle" type="checkbox" checked />
+              <span class="toggle-copy">
+                <strong>Görüntü iyileştirme</strong>
+                <small>Otomatik kontrast ve netleştirme</small>
+              </span>
+              <span class="toggle-switch" aria-hidden="true"></span>
+            </label>
+          </div>
+
+          <div class="progress-block" aria-label="OCR ilerlemesi">
+            <div class="progress-header">
+              <span id="progressLabel">Beklemede</span>
+              <span id="progressPercent">%0</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+          </div>
+
+          <div class="quality-card is-empty" id="qualityCard" aria-live="polite">
+            <div>
+              <span class="quality-label">OCR kalite skoru</span>
+              <strong id="confidenceValue">--</strong>
+            </div>
+            <p id="qualityMessage">Henüz analiz yapılmadı.</p>
+          </div>
+        </section>
+
+        <section class="panel text-panel" aria-labelledby="textPanelTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Metin</p>
+              <h2 id="textPanelTitle">Okunacak içerik</h2>
+            </div>
+            <div class="utility-actions">
+              <button class="icon-button" id="copyButton" type="button" aria-label="Metni kopyala" disabled>
+                <i data-lucide="copy"></i>
+              </button>
+              <button class="icon-button" id="downloadButton" type="button" aria-label="Metni indir" disabled>
+                <i data-lucide="download"></i>
+              </button>
+            </div>
+          </div>
+
+          <label class="sr-only" for="textOutput">Seslendirilecek metin</label>
+          <textarea
+            id="textOutput"
+            spellcheck="true"
+            placeholder="Fotoğraftan çıkan yazı veya seslendirmek istediğin metin burada."
+          ></textarea>
+
+          <div class="text-meta">
+            <span id="charCount">0 karakter</span>
+            <span id="wordCount">0 kelime</span>
+          </div>
+
+          <div class="voice-grid">
+            <div class="field-group voice-field">
+              <label for="voiceSelect">Ses</label>
+              <select id="voiceSelect"></select>
+            </div>
+            <div class="field-group compact-field">
+              <label for="rateRange">Hız <span id="rateValue">1.0</span></label>
+              <input id="rateRange" type="range" min="0.6" max="1.6" value="1" step="0.1" />
+            </div>
+            <div class="field-group compact-field">
+              <label for="pitchRange">Ton <span id="pitchValue">1.0</span></label>
+              <input id="pitchRange" type="range" min="0.7" max="1.4" value="1" step="0.1" />
+            </div>
+          </div>
+
+          <div class="speech-controls">
+            <button class="primary-button" id="speakButton" type="button" disabled>
+              <i data-lucide="volume-2"></i>
+              <span>Seslendir</span>
+            </button>
+            <button class="secondary-button" id="pauseButton" type="button" disabled>
+              <i data-lucide="pause"></i>
+              <span>Duraklat</span>
+            </button>
+            <button class="secondary-button" id="stopButton" type="button" disabled>
+              <i data-lucide="square"></i>
+              <span>Durdur</span>
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <section class="panel demo-panel" aria-labelledby="demoPanelTitle">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Deneme Merkezi</p>
+            <h2 id="demoPanelTitle">Hazır testler</h2>
+          </div>
+          <span class="demo-badge">Ücretsiz tarayıcı OCR</span>
+        </div>
+
+        <div class="demo-grid">
+          <button class="demo-action" type="button" data-demo="turkish">
+            <i data-lucide="languages"></i>
+            <span>
+              <strong>Türkçe karakter</strong>
+              <small>TÜRKÇE İÇİN / ÇAĞRI GÜNÜ ŞİMDİ</small>
+            </span>
+          </button>
+          <button class="demo-action" type="button" data-demo="english">
+            <i data-lucide="text-cursor-input"></i>
+            <span>
+              <strong>Net İngilizce</strong>
+              <small>HELLO AI / READ THIS TEXT</small>
+            </span>
+          </button>
+          <button class="demo-action" type="button" data-demo="low-contrast">
+            <i data-lucide="contrast"></i>
+            <span>
+              <strong>Düşük kontrast</strong>
+              <small>İyileştirme katmanını dener</small>
+            </span>
+          </button>
+          <button class="demo-action" type="button" data-demo="speech">
+            <i data-lucide="message-square-text"></i>
+            <span>
+              <strong>Metin seslendirme</strong>
+              <small>Fotoğraf olmadan ses testi</small>
+            </span>
+          </button>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>
