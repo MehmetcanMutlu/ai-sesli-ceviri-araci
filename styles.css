@@ -444,7 +444,7 @@ select {
   gap: 0.4rem;
 }
 
-.quality-card > div {
+.quality-score-row {
   align-items: center;
   display: flex;
   justify-content: space-between;
@@ -487,6 +487,35 @@ select {
 
 .quality-card.is-danger strong {
   color: var(--danger);
+}
+
+.quality-metrics {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0.25rem;
+}
+
+.quality-metrics span {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+  padding: 0.55rem;
+}
+
+.quality-metrics strong {
+  color: var(--ink);
+  font-size: 0.98rem;
+}
+
+.quality-metrics small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .text-panel {
@@ -643,6 +672,7 @@ input[type="range"] {
   .control-row,
   .speech-controls,
   .voice-grid,
+  .quality-metrics,
   .demo-grid {
     grid-template-columns: 1fr;
   }
