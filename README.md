@@ -8,6 +8,9 @@ Fotoğraftaki yazıları okuyup metne çeviren ve metni sesli okuyan web uygulam
 - Türkçe ve İngilizce ağırlıklı OCR desteği
 - OCR öncesi otomatik görüntü iyileştirme
 - OCR kalite skoru ve düşük kalite uyarıları
+- Metin analizi: satır, kelime ve tahmini okuma süresi
+- Dil, görüntü iyileştirme ve ses ayarlarını tarayıcıda hatırlama
+- Büyük veya görsel olmayan dosyalar için yükleme kontrolü
 - Hazır demo testleri: Türkçe karakter, İngilizce, düşük kontrast ve metin seslendirme
 - Çıkarılan metni düzenleme
 - Yazıyı tarayıcı sesiyle seslendirme
@@ -40,10 +43,11 @@ Playwright smoke testlerini çalıştırmak için:
 
 ```bash
 npm install
+npm run check
 npm test
 ```
 
-Testler sayfanın açıldığını, temel buton durumlarını, mobil taşma olmadığını, Türkçe/İngilizce OCR örneklerini ve düşük kontrast iyileştirme akışını kontrol eder.
+Testler sayfanın açıldığını, temel buton durumlarını, ayar kalıcılığını, metin analizini, mobil taşma olmadığını, Türkçe/İngilizce OCR örneklerini ve düşük kontrast iyileştirme akışını kontrol eder.
 
 ## Teknoloji
 
