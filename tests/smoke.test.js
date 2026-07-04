@@ -50,6 +50,7 @@ async function main() {
     await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
     await assertPageBasics(page);
     await assertTextFlow(page);
+    await assertSettingsPersistence(page, port);
     await assertOcrDemo(page, "turkish", ["TÜRKÇE", "İÇİN", "ÇAĞRI"]);
     await assertOcrDemo(page, "english", ["HELLO", "READ THIS TEXT"]);
     await assertLowContrastImprovement(page);
@@ -71,22 +72,64 @@ async function assertPageBasics(page) {
   const extractDisabled = await page.locator("#extractButton").isDisabled();
   const speakDisabled = await page.locator("#speakButton").isDisabled();
   const demoCount = await page.locator("[data-demo]").count();
+  const metricCount = await page.locator(".quality-metrics span").count();
 
   assert(title === "Sesli Yazı Asistanı", "Başlık beklenen gibi değil.");
   assert(extractDisabled, "Başlangıçta OCR butonu disabled olmalı.");
   assert(speakDisabled, "Başlangıçta seslendirme butonu disabled olmalı.");
   assert(demoCount === 4, "Deneme Merkezi 4 demo butonu göstermeli.");
+  assert(metricCount === 3, "Kalite kartı 3 metin analizi metriği göstermeli.");
 }
 
 async function assertTextFlow(page) {
   await page.locator("#textOutput").fill("Merhaba dünya. Bu bir seslendirme testidir.");
   const speakEnabled = await page.locator("#speakButton").isEnabled();
+  const clearEnabled = await page.locator("#clearTextButton").isEnabled();
   const charCount = await page.locator("#charCount").innerText();
   const wordCount = await page.locator("#wordCount").innerText();
+  const analysisWordCount = await page.locator("#analysisWordCount").innerText();
+  const readingTime = await page.locator("#readingTime").innerText();
 
   assert(speakEnabled, "Metin girilince seslendirme butonu aktif olmalı.");
+  assert(clearEnabled, "Metin girilince temizleme butonu aktif olmalı.");
   assert(charCount === "43 karakter", "Karakter sayacı beklenen değerde değil.");
   assert(wordCount === "6 kelime", "Kelime sayacı beklenen değerde değil.");
+  assert(analysisWordCount === "6", "Analiz kelime sayısı beklenen değerde değil.");
+  assert(readingTime === "1 dk", "Tahmini okuma süresi beklenen değerde değil.");
+
+  await page.locator("#clearTextButton").click();
+  const clearedText = await page.locator("#textOutput").inputValue();
+  const clearDisabled = await page.locator("#clearTextButton").isDisabled();
+  assert(clearedText === "", "Temizleme butonu metni silmeli.");
+  assert(clearDisabled, "Metin temizlenince temizleme butonu disabled olmalı.");
+}
+
+async function assertSettingsPersistence(page, port) {
+  await page.locator("#ocrLanguage").selectOption("eng");
+  await page.locator("#enhanceToggle").uncheck();
+  await page.evaluate(() => {
+    const rate = document.querySelector("#rateRange");
+    rate.value = "1.3";
+    rate.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+
+  const language = await page.locator("#ocrLanguage").inputValue();
+  const enhanceChecked = await page.locator("#enhanceToggle").isChecked();
+  const rate = await page.locator("#rateRange").inputValue();
+
+  assert(language === "eng", "OCR dili yenilemeden sonra korunmalı.");
+  assert(!enhanceChecked, "Görüntü iyileştirme seçimi yenilemeden sonra korunmalı.");
+  assert(rate === "1.3", "Ses hızı yenilemeden sonra korunmalı.");
+
+  await page.locator("#ocrLanguage").selectOption("tur+eng");
+  await page.locator("#enhanceToggle").check();
+  await page.evaluate(() => {
+    const rate = document.querySelector("#rateRange");
+    rate.value = "1";
+    rate.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
 }
 
 async function assertOcrDemo(page, demoName, expectedParts) {
@@ -114,6 +157,7 @@ async function waitForExpectedOcrText(page, expectedParts) {
 }
 
 async function assertLowContrastImprovement(page) {
+  const expectedParts = ["DÜŞÜK", "KONTRAST"];
   await page.locator("#enhanceToggle").uncheck();
   await page.locator('[data-demo="low-contrast"]').click();
   await waitForOcr(page);
@@ -125,12 +169,17 @@ async function assertLowContrastImprovement(page) {
   await waitForOcr(page);
   const enhancedText = normalize(await page.locator("#textOutput").inputValue());
   const enhancedConfidence = (await confidenceValue(page)) || 0;
+  const rawHasExpected = expectedParts.every((part) => rawText.includes(part));
+  const enhancedHasExpected = expectedParts.every((part) => enhancedText.includes(part));
 
-  assert(enhancedText.includes("DÜŞÜK") || enhancedText.includes("KONTRAST"), "İyileştirilmiş düşük kontrast metni okunmalı.");
-  assert(
-    enhancedConfidence >= rawConfidence || enhancedText.length > rawText.length,
-    `İyileştirme sonucu daha iyi olmalı. Ham: ${rawConfidence}/${rawText}, iyileştirilmiş: ${enhancedConfidence}/${enhancedText}`,
-  );
+  assert(enhancedHasExpected, "İyileştirilmiş düşük kontrast metni okunmalı.");
+
+  if (!rawHasExpected) {
+    assert(
+      enhancedConfidence >= rawConfidence || enhancedText.length > rawText.length,
+      `İyileştirme ham OCR başarısızken toparlamalı. Ham: ${rawConfidence}/${rawText}, iyileştirilmiş: ${enhancedConfidence}/${enhancedText}`,
+    );
+  }
 }
 
 async function assertMobileLayout(page) {
