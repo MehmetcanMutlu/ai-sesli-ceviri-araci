@@ -9,6 +9,9 @@ const state = {
   lastConfidence: null,
 };
 
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+const SETTINGS_KEY = "sesliYaziAsistaniSettings";
+
 const DEMO_TEXTS = {
   turkish: ["TÜRKÇE İÇİN", "ÇAĞRI GÜNÜ ŞİMDİ"],
   english: ["HELLO AI", "READ THIS TEXT"],
@@ -19,6 +22,7 @@ const elements = {};
 
 document.addEventListener("DOMContentLoaded", () => {
   cacheElements();
+  applySavedSettings();
   bindEvents();
   refreshVoices();
   updateTextStats();
@@ -43,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
     runDemoCase,
     setEnhancement(enabled) {
       elements.enhanceToggle.checked = Boolean(enabled);
+      persistSettings();
     },
   };
 });
@@ -64,6 +69,9 @@ function cacheElements() {
     confidenceValue: document.querySelector("#confidenceValue"),
     qualityCard: document.querySelector("#qualityCard"),
     qualityMessage: document.querySelector("#qualityMessage"),
+    lineCount: document.querySelector("#lineCount"),
+    analysisWordCount: document.querySelector("#analysisWordCount"),
+    readingTime: document.querySelector("#readingTime"),
     textOutput: document.querySelector("#textOutput"),
     charCount: document.querySelector("#charCount"),
     wordCount: document.querySelector("#wordCount"),
@@ -75,6 +83,7 @@ function cacheElements() {
     speakButton: document.querySelector("#speakButton"),
     pauseButton: document.querySelector("#pauseButton"),
     stopButton: document.querySelector("#stopButton"),
+    clearTextButton: document.querySelector("#clearTextButton"),
     copyButton: document.querySelector("#copyButton"),
     downloadButton: document.querySelector("#downloadButton"),
     demoButtons: document.querySelectorAll("[data-demo]"),
@@ -85,7 +94,7 @@ function bindEvents() {
   elements.imageInput.addEventListener("change", (event) => {
     const [file] = event.target.files;
     if (file) {
-      loadImage(file);
+      handleImageFile(file);
     }
   });
 
@@ -102,8 +111,8 @@ function bindEvents() {
     event.preventDefault();
     elements.dropZone.classList.remove("is-dragging");
     const [file] = event.dataTransfer.files;
-    if (file && file.type.startsWith("image/")) {
-      loadImage(file);
+    if (file) {
+      handleImageFile(file);
     }
   });
 
@@ -112,8 +121,11 @@ function bindEvents() {
 
   elements.enhanceToggle.addEventListener("change", () => {
     resetQuality();
+    persistSettings();
     setStatus(elements.enhanceToggle.checked ? "İyileştirme açık" : "İyileştirme kapalı");
   });
+
+  elements.ocrLanguage.addEventListener("change", persistSettings);
 
   elements.textOutput.addEventListener("input", () => {
     updateTextStats();
@@ -122,15 +134,19 @@ function bindEvents() {
 
   elements.rateRange.addEventListener("input", () => {
     elements.rateValue.textContent = Number(elements.rateRange.value).toFixed(1);
+    persistSettings();
   });
 
   elements.pitchRange.addEventListener("input", () => {
     elements.pitchValue.textContent = Number(elements.pitchRange.value).toFixed(1);
+    persistSettings();
   });
 
+  elements.voiceSelect.addEventListener("change", persistSettings);
   elements.speakButton.addEventListener("click", speakText);
   elements.pauseButton.addEventListener("click", togglePause);
   elements.stopButton.addEventListener("click", stopSpeaking);
+  elements.clearTextButton.addEventListener("click", clearText);
   elements.copyButton.addEventListener("click", copyText);
   elements.downloadButton.addEventListener("click", downloadText);
 
@@ -141,6 +157,33 @@ function bindEvents() {
   if ("speechSynthesis" in window) {
     window.speechSynthesis.addEventListener("voiceschanged", refreshVoices);
   }
+}
+
+function handleImageFile(file) {
+  const validationMessage = validateImageFile(file);
+
+  if (validationMessage) {
+    elements.imageInput.value = "";
+    resetProgress();
+    setQuality(null, validationMessage);
+    setStatus("Fotoğraf yüklenemedi");
+    return false;
+  }
+
+  loadImage(file);
+  return true;
+}
+
+function validateImageFile(file) {
+  if (!file.type.startsWith("image/")) {
+    return "Bu dosya görsel değil. PNG, JPG veya benzeri bir fotoğraf seçin.";
+  }
+
+  if (file.size > MAX_IMAGE_SIZE_BYTES) {
+    return "Fotoğraf 10 MB sınırını aşıyor. Daha küçük veya sıkıştırılmış bir görsel deneyin.";
+  }
+
+  return "";
 }
 
 function loadImage(file) {
@@ -172,6 +215,7 @@ async function extractTextFromImage() {
 
   state.isReading = true;
   elements.extractButton.disabled = true;
+  elements.extractButton.setAttribute("aria-busy", "true");
   setDemoButtonsDisabled(true);
   setStatus("Metin okunuyor");
   updateProgress("Hazırlanıyor", 0);
@@ -207,6 +251,7 @@ async function extractTextFromImage() {
     return null;
   } finally {
     state.isReading = false;
+    elements.extractButton.removeAttribute("aria-busy");
     elements.extractButton.disabled = !state.currentImageFile;
     setDemoButtonsDisabled(false);
   }
@@ -378,6 +423,7 @@ function refreshVoices() {
   }
 
   const selectedVoice = elements.voiceSelect.value;
+  const savedVoice = readSettings().voiceName;
   state.voices = window.speechSynthesis.getVoices();
   const orderedVoices = [...state.voices].sort((first, second) => {
     const firstTurkish = first.lang.toLowerCase().startsWith("tr") ? 0 : 1;
@@ -404,10 +450,12 @@ function refreshVoices() {
 
   const preferredVoice =
     orderedVoices.find((voice) => voice.name === selectedVoice) ||
+    orderedVoices.find((voice) => voice.name === savedVoice) ||
     orderedVoices.find((voice) => voice.lang.toLowerCase().startsWith("tr"));
 
   if (preferredVoice) {
     elements.voiceSelect.value = preferredVoice.name;
+    persistSettings();
   }
 }
 
@@ -519,8 +567,17 @@ function updateSpeechButtons() {
   elements.speakButton.disabled = !hasText || !speechSupported;
   elements.pauseButton.disabled = !speaking;
   elements.stopButton.disabled = !speaking;
+  elements.clearTextButton.disabled = !hasText;
   elements.copyButton.disabled = !hasText;
   elements.downloadButton.disabled = !hasText;
+}
+
+function clearText() {
+  stopSpeaking();
+  elements.textOutput.value = "";
+  updateTextStats();
+  updateSpeechButtons();
+  setStatus("Metin temizlendi");
 }
 
 async function copyText() {
@@ -557,10 +614,25 @@ function downloadText() {
 
 function updateTextStats() {
   const text = elements.textOutput.value.trim();
-  const charCount = elements.textOutput.value.length;
-  const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0;
-  elements.charCount.textContent = `${charCount} karakter`;
-  elements.wordCount.textContent = `${wordCount} kelime`;
+  const metrics = getTextMetrics(text, elements.textOutput.value.length);
+  elements.charCount.textContent = `${metrics.charCount} karakter`;
+  elements.wordCount.textContent = `${metrics.wordCount} kelime`;
+  elements.lineCount.textContent = String(metrics.lineCount);
+  elements.analysisWordCount.textContent = String(metrics.wordCount);
+  elements.readingTime.textContent = metrics.readingTimeLabel;
+}
+
+function getTextMetrics(trimmedText, rawCharCount) {
+  const wordCount = trimmedText ? trimmedText.split(/\s+/).filter(Boolean).length : 0;
+  const lineCount = trimmedText ? trimmedText.split(/\n+/).filter((line) => line.trim()).length : 0;
+  const readingMinutes = wordCount ? Math.max(1, Math.ceil(wordCount / 150)) : 0;
+
+  return {
+    charCount: rawCharCount,
+    lineCount,
+    readingTimeLabel: `${readingMinutes} dk`,
+    wordCount,
+  };
 }
 
 async function runDemoCase(name) {
@@ -651,4 +723,52 @@ function resetApp() {
 
 function setStatus(message) {
   elements.appStatus.textContent = message;
+}
+
+function applySavedSettings() {
+  const settings = readSettings();
+
+  if (settings.ocrLanguage) {
+    elements.ocrLanguage.value = settings.ocrLanguage;
+  }
+
+  if (typeof settings.enhanceImages === "boolean") {
+    elements.enhanceToggle.checked = settings.enhanceImages;
+  }
+
+  if (settings.rate) {
+    elements.rateRange.value = settings.rate;
+    elements.rateValue.textContent = Number(elements.rateRange.value).toFixed(1);
+  }
+
+  if (settings.pitch) {
+    elements.pitchRange.value = settings.pitch;
+    elements.pitchValue.textContent = Number(elements.pitchRange.value).toFixed(1);
+  }
+}
+
+function persistSettings() {
+  try {
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({
+        enhanceImages: elements.enhanceToggle.checked,
+        ocrLanguage: elements.ocrLanguage.value,
+        pitch: elements.pitchRange.value,
+        rate: elements.rateRange.value,
+        voiceName: elements.voiceSelect.value,
+      }),
+    );
+  } catch (error) {
+    console.warn("Ayarlar kaydedilemedi.", error);
+  }
+}
+
+function readSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+  } catch (error) {
+    console.warn("Ayarlar okunamadı.", error);
+    return {};
+  }
 }
