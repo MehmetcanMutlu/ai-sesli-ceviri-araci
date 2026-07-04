@@ -42,7 +42,7 @@
               <p class="eyebrow">Görüntü</p>
               <h2 id="imagePanelTitle">Fotoğraf</h2>
             </div>
-            <button class="icon-button" id="resetButton" type="button" aria-label="Sıfırla">
+            <button class="icon-button" id="resetButton" type="button" aria-label="Sıfırla" title="Sıfırla">
               <i data-lucide="rotate-ccw"></i>
             </button>
           </div>
@@ -54,6 +54,7 @@
               type="file"
               accept="image/*"
               capture="environment"
+              data-testid="image-input"
             />
             <div class="preview-frame" id="previewFrame">
               <img id="imagePreview" class="image-preview" alt="Yüklenen fotoğraf önizlemesi" />
@@ -69,7 +70,7 @@
               <i data-lucide="camera"></i>
               <span>Fotoğraf seç</span>
             </label>
-            <button class="primary-button" id="extractButton" type="button" disabled>
+            <button class="primary-button" id="extractButton" type="button" disabled data-testid="extract-button">
               <i data-lucide="scan-line"></i>
               <span>Metni oku</span>
             </button>
@@ -78,7 +79,7 @@
           <div class="field-grid">
             <div class="field-group">
               <label for="ocrLanguage">OCR dili</label>
-              <select id="ocrLanguage">
+              <select id="ocrLanguage" data-testid="ocr-language">
                 <option value="tur+eng" selected>Türkçe + İngilizce</option>
                 <option value="tur">Türkçe</option>
                 <option value="eng">İngilizce</option>
@@ -89,7 +90,7 @@
             </div>
 
             <label class="toggle-card" for="enhanceToggle">
-              <input id="enhanceToggle" type="checkbox" checked />
+              <input id="enhanceToggle" type="checkbox" checked data-testid="enhance-toggle" />
               <span class="toggle-copy">
                 <strong>Görüntü iyileştirme</strong>
                 <small>Otomatik kontrast ve netleştirme</small>
@@ -98,7 +99,7 @@
             </label>
           </div>
 
-          <div class="progress-block" aria-label="OCR ilerlemesi">
+          <div class="progress-block" aria-label="OCR ilerlemesi" data-testid="ocr-progress">
             <div class="progress-header">
               <span id="progressLabel">Beklemede</span>
               <span id="progressPercent">%0</span>
@@ -108,12 +109,26 @@
             </div>
           </div>
 
-          <div class="quality-card is-empty" id="qualityCard" aria-live="polite">
-            <div>
+          <div class="quality-card is-empty" id="qualityCard" aria-live="polite" data-testid="quality-card">
+            <div class="quality-score-row">
               <span class="quality-label">OCR kalite skoru</span>
               <strong id="confidenceValue">--</strong>
             </div>
             <p id="qualityMessage">Henüz analiz yapılmadı.</p>
+            <div class="quality-metrics" id="analysisSummary" aria-label="Metin analizi">
+              <span>
+                <strong id="lineCount">0</strong>
+                <small>satır</small>
+              </span>
+              <span>
+                <strong id="analysisWordCount">0</strong>
+                <small>kelime</small>
+              </span>
+              <span>
+                <strong id="readingTime">0 dk</strong>
+                <small>tahmini okuma</small>
+              </span>
+            </div>
           </div>
         </section>
 
@@ -124,10 +139,13 @@
               <h2 id="textPanelTitle">Okunacak içerik</h2>
             </div>
             <div class="utility-actions">
-              <button class="icon-button" id="copyButton" type="button" aria-label="Metni kopyala" disabled>
+              <button class="icon-button" id="clearTextButton" type="button" aria-label="Metni temizle" title="Metni temizle" disabled>
+                <i data-lucide="eraser"></i>
+              </button>
+              <button class="icon-button" id="copyButton" type="button" aria-label="Metni kopyala" title="Metni kopyala" disabled>
                 <i data-lucide="copy"></i>
               </button>
-              <button class="icon-button" id="downloadButton" type="button" aria-label="Metni indir" disabled>
+              <button class="icon-button" id="downloadButton" type="button" aria-label="Metni indir" title="Metni indir" disabled>
                 <i data-lucide="download"></i>
               </button>
             </div>
@@ -137,6 +155,7 @@
           <textarea
             id="textOutput"
             spellcheck="true"
+            data-testid="text-output"
             placeholder="Fotoğraftan çıkan yazı veya seslendirmek istediğin metin burada."
           ></textarea>
 
@@ -148,20 +167,20 @@
           <div class="voice-grid">
             <div class="field-group voice-field">
               <label for="voiceSelect">Ses</label>
-              <select id="voiceSelect"></select>
+              <select id="voiceSelect" data-testid="voice-select"></select>
             </div>
             <div class="field-group compact-field">
               <label for="rateRange">Hız <span id="rateValue">1.0</span></label>
-              <input id="rateRange" type="range" min="0.6" max="1.6" value="1" step="0.1" />
+              <input id="rateRange" type="range" min="0.6" max="1.6" value="1" step="0.1" data-testid="rate-range" />
             </div>
             <div class="field-group compact-field">
               <label for="pitchRange">Ton <span id="pitchValue">1.0</span></label>
-              <input id="pitchRange" type="range" min="0.7" max="1.4" value="1" step="0.1" />
+              <input id="pitchRange" type="range" min="0.7" max="1.4" value="1" step="0.1" data-testid="pitch-range" />
             </div>
           </div>
 
           <div class="speech-controls">
-            <button class="primary-button" id="speakButton" type="button" disabled>
+            <button class="primary-button" id="speakButton" type="button" disabled data-testid="speak-button">
               <i data-lucide="volume-2"></i>
               <span>Seslendir</span>
             </button>
@@ -187,28 +206,28 @@
         </div>
 
         <div class="demo-grid">
-          <button class="demo-action" type="button" data-demo="turkish">
+          <button class="demo-action" type="button" data-demo="turkish" data-testid="demo-turkish">
             <i data-lucide="languages"></i>
             <span>
               <strong>Türkçe karakter</strong>
               <small>TÜRKÇE İÇİN / ÇAĞRI GÜNÜ ŞİMDİ</small>
             </span>
           </button>
-          <button class="demo-action" type="button" data-demo="english">
+          <button class="demo-action" type="button" data-demo="english" data-testid="demo-english">
             <i data-lucide="text-cursor-input"></i>
             <span>
               <strong>Net İngilizce</strong>
               <small>HELLO AI / READ THIS TEXT</small>
             </span>
           </button>
-          <button class="demo-action" type="button" data-demo="low-contrast">
+          <button class="demo-action" type="button" data-demo="low-contrast" data-testid="demo-low-contrast">
             <i data-lucide="contrast"></i>
             <span>
               <strong>Düşük kontrast</strong>
               <small>İyileştirme katmanını dener</small>
             </span>
           </button>
-          <button class="demo-action" type="button" data-demo="speech">
+          <button class="demo-action" type="button" data-demo="speech" data-testid="demo-speech">
             <i data-lucide="message-square-text"></i>
             <span>
               <strong>Metin seslendirme</strong>
