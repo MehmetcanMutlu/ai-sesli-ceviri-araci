@@ -723,8 +723,8 @@ async function runDemoCase(name) {
 async function createDemoImageFile(name) {
   const lines = DEMO_TEXTS[name] || DEMO_TEXTS.turkish;
   const canvas = document.createElement("canvas");
-  canvas.width = 1500;
-  canvas.height = 360;
+  canvas.width = 1200;
+  canvas.height = 520;
   const ctx = canvas.getContext("2d");
   const lowContrast = name === "low-contrast";
 
@@ -742,12 +742,12 @@ async function createDemoImageFile(name) {
   ctx.textBaseline = "top";
   ctx.font = "bold 78px Arial, sans-serif";
   lines.forEach((line, index) => {
-    ctx.fillText(line, 70, 58 + index * 118);
+    ctx.fillText(line, 86, 92 + index * 126);
   });
 
   ctx.font = "32px Arial, sans-serif";
   ctx.fillStyle = lowContrast ? "#b8c2ce" : "#475569";
-  ctx.fillText("Sesli Yazı Asistanı V2", 72, 300);
+  ctx.fillText("Sesli Yazı Asistanı V2", 88, 392);
 
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
   return new File([blob], `${name}-demo.png`, { type: "image/png" });
