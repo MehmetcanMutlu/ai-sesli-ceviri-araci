@@ -115,6 +115,16 @@
               <strong id="confidenceValue">--</strong>
             </div>
             <p id="qualityMessage">Henüz analiz yapılmadı.</p>
+            <div class="file-summary" aria-label="Dosya bilgisi">
+              <span>
+                <small>Dosya</small>
+                <strong id="fileName">--</strong>
+              </span>
+              <span>
+                <small>Boyut</small>
+                <strong id="fileSize">--</strong>
+              </span>
+            </div>
             <div class="quality-metrics" id="analysisSummary" aria-label="Metin analizi">
               <span>
                 <strong id="lineCount">0</strong>
@@ -139,6 +149,9 @@
               <h2 id="textPanelTitle">Okunacak içerik</h2>
             </div>
             <div class="utility-actions">
+              <button class="icon-button" id="copyReportButton" type="button" aria-label="OCR raporunu kopyala" title="OCR raporunu kopyala" disabled>
+                <i data-lucide="clipboard-check"></i>
+              </button>
               <button class="icon-button" id="clearTextButton" type="button" aria-label="Metni temizle" title="Metni temizle" disabled>
                 <i data-lucide="eraser"></i>
               </button>
