@@ -7,6 +7,7 @@ const state = {
   voices: [],
   activeUtterance: null,
   lastConfidence: null,
+  lastOcrDurationMs: null,
 };
 
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -43,7 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.__speechAssistant = {
     createDemoImageFile,
     extractTextFromImage,
-    loadImage,
+    loadImage: handleImageFile,
     runDemoCase,
     setEnhancement(enabled) {
       elements.enhanceToggle.checked = Boolean(enabled);
@@ -69,6 +70,8 @@ function cacheElements() {
     confidenceValue: document.querySelector("#confidenceValue"),
     qualityCard: document.querySelector("#qualityCard"),
     qualityMessage: document.querySelector("#qualityMessage"),
+    fileName: document.querySelector("#fileName"),
+    fileSize: document.querySelector("#fileSize"),
     lineCount: document.querySelector("#lineCount"),
     analysisWordCount: document.querySelector("#analysisWordCount"),
     readingTime: document.querySelector("#readingTime"),
@@ -83,6 +86,7 @@ function cacheElements() {
     speakButton: document.querySelector("#speakButton"),
     pauseButton: document.querySelector("#pauseButton"),
     stopButton: document.querySelector("#stopButton"),
+    copyReportButton: document.querySelector("#copyReportButton"),
     clearTextButton: document.querySelector("#clearTextButton"),
     copyButton: document.querySelector("#copyButton"),
     downloadButton: document.querySelector("#downloadButton"),
@@ -146,6 +150,7 @@ function bindEvents() {
   elements.speakButton.addEventListener("click", speakText);
   elements.pauseButton.addEventListener("click", togglePause);
   elements.stopButton.addEventListener("click", stopSpeaking);
+  elements.copyReportButton.addEventListener("click", copyOcrReport);
   elements.clearTextButton.addEventListener("click", clearText);
   elements.copyButton.addEventListener("click", copyText);
   elements.downloadButton.addEventListener("click", downloadText);
@@ -199,6 +204,7 @@ function loadImage(file) {
   elements.extractButton.disabled = false;
   resetProgress();
   resetQuality();
+  updateFileSummary(file);
   setStatus("Fotoğraf yüklendi");
 }
 
@@ -220,6 +226,7 @@ async function extractTextFromImage() {
   setStatus("Metin okunuyor");
   updateProgress("Hazırlanıyor", 0);
   setQuality(null, "Görüntü analiz ediliyor.");
+  const startedAt = performance.now();
 
   try {
     const ocrInput = elements.enhanceToggle.checked
@@ -236,16 +243,19 @@ async function extractTextFromImage() {
 
     const text = normalizeExtractedText(result.data.text || "");
     const confidence = normalizeConfidence(result.data.confidence);
+    state.lastOcrDurationMs = Math.round(performance.now() - startedAt);
     elements.textOutput.value = text;
     updateTextStats();
     updateSpeechButtons();
     updateProgress("Tamamlandı", 1);
     setQuality(confidence, getQualityMessage(confidence, text));
     setStatus(text ? "Metin hazır" : "Okunabilir metin bulunamadı");
+    updateReportButton();
     return { text, confidence };
   } catch (error) {
     console.error(error);
     updateProgress("Hata", 0);
+    state.lastOcrDurationMs = null;
     setQuality(null, "Metin okunamadı. Daha net, ışıklı ve düz çekilmiş bir fotoğraf deneyin.");
     setStatus("Metin okunamadı");
     return null;
@@ -567,17 +577,68 @@ function updateSpeechButtons() {
   elements.speakButton.disabled = !hasText || !speechSupported;
   elements.pauseButton.disabled = !speaking;
   elements.stopButton.disabled = !speaking;
+  updateReportButton();
   elements.clearTextButton.disabled = !hasText;
   elements.copyButton.disabled = !hasText;
   elements.downloadButton.disabled = !hasText;
 }
 
+function updateReportButton() {
+  const hasReport = Boolean(elements.textOutput.value.trim()) && state.lastConfidence !== null;
+  elements.copyReportButton.disabled = !hasReport;
+}
+
 function clearText() {
   stopSpeaking();
   elements.textOutput.value = "";
+  state.lastOcrDurationMs = null;
   updateTextStats();
   updateSpeechButtons();
   setStatus("Metin temizlendi");
+}
+
+async function copyOcrReport() {
+  const report = createOcrReport();
+
+  if (!report) {
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(report);
+    setStatus("OCR raporu kopyalandı");
+  } catch (error) {
+    console.error(error);
+    setStatus("Rapor kopyalanamadı");
+  }
+}
+
+function createOcrReport() {
+  const text = elements.textOutput.value.trim();
+
+  if (!text || state.lastConfidence === null) {
+    return "";
+  }
+
+  const metrics = getTextMetrics(text, elements.textOutput.value.length);
+  const languageLabel = elements.ocrLanguage.selectedOptions[0]?.textContent || elements.ocrLanguage.value;
+  const fileName = state.currentImageFile?.name || "Metin girişi";
+  const duration = state.lastOcrDurationMs ? `${(state.lastOcrDurationMs / 1000).toFixed(1)} sn` : "Hesaplanamadı";
+
+  return [
+    "Sesli Yazı Asistanı OCR Raporu",
+    `Dosya: ${fileName}`,
+    `Dil: ${languageLabel}`,
+    `Görüntü iyileştirme: ${elements.enhanceToggle.checked ? "Açık" : "Kapalı"}`,
+    `Kalite skoru: %${state.lastConfidence}`,
+    `Satır: ${metrics.lineCount}`,
+    `Kelime: ${metrics.wordCount}`,
+    `Tahmini okuma: ${metrics.readingTimeLabel}`,
+    `OCR süresi: ${duration}`,
+    "",
+    "Çıkarılan metin:",
+    text,
+  ].join("\n");
 }
 
 async function copyText() {
@@ -708,6 +769,7 @@ function resetApp() {
   state.currentImageFile = null;
   state.currentImageUrl = "";
   state.lastConfidence = null;
+  state.lastOcrDurationMs = null;
   elements.imageInput.value = "";
   elements.imagePreview.removeAttribute("src");
   elements.imagePreview.classList.remove("has-image");
@@ -716,9 +778,32 @@ function resetApp() {
   elements.textOutput.value = "";
   resetProgress();
   resetQuality();
+  resetFileSummary();
   updateTextStats();
   updateSpeechButtons();
   setStatus("Hazır");
+}
+
+function updateFileSummary(file) {
+  elements.fileName.textContent = file.name || "İsimsiz görsel";
+  elements.fileSize.textContent = formatFileSize(file.size);
+}
+
+function resetFileSummary() {
+  elements.fileName.textContent = "--";
+  elements.fileSize.textContent = "--";
+}
+
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "--";
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function setStatus(message) {
