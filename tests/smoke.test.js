@@ -47,10 +47,12 @@ async function main() {
     });
     page.on("pageerror", (error) => errors.push(error.message));
 
-    await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
+    await page.goto(`http://localhost:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.locator("h1").waitFor({ state: "visible", timeout: 30000 });
     await assertPageBasics(page);
     await assertTextFlow(page);
     await assertSettingsPersistence(page, port);
+    await assertFileValidation(page);
     await assertOcrDemo(page, "turkish", ["TÜRKÇE", "İÇİN", "ÇAĞRI"]);
     await assertOcrDemo(page, "english", ["HELLO", "READ THIS TEXT"]);
     await assertLowContrastImprovement(page);
@@ -73,12 +75,14 @@ async function assertPageBasics(page) {
   const speakDisabled = await page.locator("#speakButton").isDisabled();
   const demoCount = await page.locator("[data-demo]").count();
   const metricCount = await page.locator(".quality-metrics span").count();
+  const fileMetricCount = await page.locator(".file-summary span").count();
 
   assert(title === "Sesli Yazı Asistanı", "Başlık beklenen gibi değil.");
   assert(extractDisabled, "Başlangıçta OCR butonu disabled olmalı.");
   assert(speakDisabled, "Başlangıçta seslendirme butonu disabled olmalı.");
   assert(demoCount === 4, "Deneme Merkezi 4 demo butonu göstermeli.");
   assert(metricCount === 3, "Kalite kartı 3 metin analizi metriği göstermeli.");
+  assert(fileMetricCount === 2, "Kalite kartı dosya adı ve boyut bilgisi göstermeli.");
 }
 
 async function assertTextFlow(page) {
@@ -112,7 +116,8 @@ async function assertSettingsPersistence(page, port) {
     rate.value = "1.3";
     rate.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.locator("h1").waitFor({ state: "visible", timeout: 30000 });
 
   const language = await page.locator("#ocrLanguage").inputValue();
   const enhanceChecked = await page.locator("#enhanceToggle").isChecked();
@@ -129,7 +134,19 @@ async function assertSettingsPersistence(page, port) {
     rate.value = "1";
     rate.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
+  await page.goto(`http://localhost:${port}/`, { waitUntil: "domcontentloaded" });
+  await page.locator("h1").waitFor({ state: "visible", timeout: 30000 });
+}
+
+async function assertFileValidation(page) {
+  const accepted = await page.evaluate(async () => {
+    const textFile = new File(["not an image"], "notes.txt", { type: "text/plain" });
+    return window.__speechAssistant.loadImage(textFile);
+  });
+  const status = await page.locator("#appStatus").innerText();
+
+  assert(!accepted, "Görsel olmayan dosya kabul edilmemeli.");
+  assert(status === "Fotoğraf yüklenemedi", "Geçersiz dosya durum mesajı beklenen gibi değil.");
 }
 
 async function assertOcrDemo(page, demoName, expectedParts) {
@@ -137,11 +154,17 @@ async function assertOcrDemo(page, demoName, expectedParts) {
   await waitForExpectedOcrText(page, expectedParts);
   const text = normalize(await page.locator("#textOutput").inputValue());
   const confidence = await confidenceValue(page);
+  const fileName = await page.locator("#fileName").innerText();
+  const fileSize = await page.locator("#fileSize").innerText();
+  const reportEnabled = await page.locator("#copyReportButton").isEnabled();
 
   expectedParts.forEach((part) => {
     assert(text.includes(normalize(part)), `${demoName} OCR sonucu "${part}" içermiyor: ${text}`);
   });
   assert(confidence !== null && confidence >= 65, `${demoName} kalite skoru düşük: ${confidence}`);
+  assert(fileName.includes(demoName), `${demoName} dosya adı kalite kartında görünmeli.`);
+  assert(fileSize !== "--", `${demoName} dosya boyutu kalite kartında görünmeli.`);
+  assert(reportEnabled, `${demoName} OCR sonrası rapor kopyalama aktif olmalı.`);
 }
 
 async function waitForExpectedOcrText(page, expectedParts) {
