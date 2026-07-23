@@ -489,6 +489,36 @@ select {
   color: var(--danger);
 }
 
+.file-summary {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.8fr);
+}
+
+.file-summary span {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+  padding: 0.55rem;
+}
+
+.file-summary small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.file-summary strong {
+  color: var(--ink);
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .quality-metrics {
   display: grid;
   gap: 0.5rem;
@@ -672,6 +702,7 @@ input[type="range"] {
   .control-row,
   .speech-controls,
   .voice-grid,
+  .file-summary,
   .quality-metrics,
   .demo-grid {
     grid-template-columns: 1fr;
